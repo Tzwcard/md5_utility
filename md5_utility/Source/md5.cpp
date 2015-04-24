@@ -195,6 +195,10 @@ bool MD5::finallize(int dataBlockSize)
 Call process
 */
 
+/* error occur when fileSize==64*n bytes
+   fix it later
+*/
+
 string MD5::getMD5_file(string inputFileName)
 {
 	fstream in;
@@ -216,7 +220,7 @@ string MD5::getMD5_file(string inputFileName)
 			if (j == 4) { data[(i - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
 			in.read(t, sizeof(t));
 		}
-		if (!in.eof()) {
+		if (!in.eof() || (i == 64) {
 			fileSize += 512;
 			process();
 			i = 0;
@@ -246,7 +250,7 @@ string MD5::getMD5_str(string strData)
 			if (j == 4) { data[(i - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
 			t[0] = strData[k];
 		}
-		if ((size_t)k < strData.size()) {
+		if ((size_t)k < strData.size() || (i == 64)) {
 			fileSize += 512;
 			process();
 			i = 0;
