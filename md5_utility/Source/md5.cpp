@@ -2,12 +2,19 @@
 
 MD5::MD5(void)
 {
-	clear();
+	init();
 }
 
-MD5::MD5(string type, string data)
+MD5::MD5(char* fileName)
 {
-	genMD5(type, data);
+	init();
+	updateWithFilename(fileName);
+}
+
+MD5::MD5(char* input, size_t length)
+{
+	init();
+	update(input, length);
 }
 
 MD5::~MD5(void)
@@ -15,39 +22,102 @@ MD5::~MD5(void)
 	;
 }
 
-void MD5::setMD5(string md5Hash)
+inline uint32_t MD5::reverseUINT32(uint32_t x)
 {
-	md5 = md5Hash;
+	return(((x& 0xff000000) >> 24) | ((x& 0x00ff0000) >> 8) | ((x& 0x0000ff00) << 8) | ((x& 0x000000ff) << 24));
 }
 
-void MD5::genMD5(string type, string data)
+inline uint64_t MD5::reverseUINT64(uint64_t x)
 {
-	clear();
-	if (strcmp(type.c_str(), "FILE") == 0) setMD5(getMD5_file(data));
-	else if (strcmp(type.c_str(), "STRING") == 0) setMD5(getMD5_str(data));
+	return(((x& 0xff00000000000000) >> 56) | ((x& 0x00ff000000000000) >> 40) | ((x& 0x0000ff0000000000) >> 24) | ((x& 0x000000ff00000000) >> 8) | ((x& 0x00000000ff000000) << 8) | ((x& 0x0000000000ff0000) << 24) | ((x& 0x000000000000ff00) << 40) | ((x& 0x00000000000000ff) << 56));
 }
 
-string MD5::getMD5(void)
+inline uint32_t MD5::rotateLeftUINT32(uint32_t x, size_t n)
 {
-	return(md5);
+	return((x << n) | (x >> (32 - n)));
 }
 
-void MD5::clear(void)
+inline uint32_t MD5::F(uint32_t x, uint32_t y, uint32_t z)
 {
-	A = 0x67452301;	B = 0xefcdab89; C = 0x98badcfe; D = 0x10325476;
+	return((x & y) | ((~x) & z));
+}
+
+inline uint32_t MD5::G(uint32_t x, uint32_t y, uint32_t z)
+{
+	return((x & z) | (y & (~z)));
+}
+inline uint32_t MD5::H(uint32_t x, uint32_t y, uint32_t z)
+{
+	return(x ^ y ^ z);
+}
+inline uint32_t MD5::I(uint32_t x, uint32_t y, uint32_t z)
+{
+	return(y ^ (x | (~z)));
+}
+
+/*
+FF(a,b,c,d,x,s,ti) a=b+((a+F(b,c,d)+x+ti)<<<s)
+GG(a,b,c,d,x,s,ti) a=b+((a+G(b,c,d)+x+ti)<<<s)
+HH(a,b,c,d,x,s,ti) a=b+((a+H(b,c,d)+x+ti)<<<s)
+II(a,b,c,d,x,s,ti) a=b+((a+I(b,c,d)+x+ti)<<<s)
+*/
+inline void MD5::FF(uint32_t& a, uint32_t b, uint32_t c, uint32_t d, uint32_t x, uint32_t s, uint32_t ac)
+{
+	a = rotateLeftUINT32(a + F(b, c, d) + x + ac, s) + b;
+}
+inline void MD5::GG(uint32_t& a, uint32_t b, uint32_t c, uint32_t d, uint32_t x, uint32_t s, uint32_t ac)
+{
+	a = rotateLeftUINT32(a + G(b, c, d) + x + ac, s) + b;
+}
+inline void MD5::HH(uint32_t& a, uint32_t b, uint32_t c, uint32_t d, uint32_t x, uint32_t s, uint32_t ac)
+{
+	a = rotateLeftUINT32(a + H(b, c, d) + x + ac, s) + b;
+}
+inline void MD5::II(uint32_t& a, uint32_t b, uint32_t c, uint32_t d, uint32_t x, uint32_t s, uint32_t ac)
+{
+	a = rotateLeftUINT32(a + I(b, c, d) + x + ac, s) + b;
+}
+
+string MD5::getMD5InString(void)
+{
+	return(md5_str);
+}
+
+char* MD5::getMD5InChar(void)
+{
+	return(md5_char);
+}
+
+void MD5::init(void)
+{
+	hashes[0] = 0x67452301;	hashes[1] = 0xefcdab89; hashes[2] = 0x98badcfe; hashes[3] = 0x10325476;
+	dataBlockSize = 0;
 	fileSize = 0;
 	memset(data, 0x00000000, sizeof(data));
+
+	md5_str = "";
+	memset(md5_char, 0x00, sizeof(md5_char));
 }
 
-string MD5::md5ToString(void)
+void MD5::updateMD5Results(void)
 {
-	string MD5 = "";
-	int i;
-	for (i = 0; i < 8; i++) MD5.insert(MD5.size(), sizeof(char), HextoChar[((A) >> ((7 - i) * 4) & 0xf)]);
-	for (i = 0; i < 8; i++) MD5.insert(MD5.size(), sizeof(char), HextoChar[((B) >> ((7 - i) * 4) & 0xf)]);
-	for (i = 0; i < 8; i++) MD5.insert(MD5.size(), sizeof(char), HextoChar[((C) >> ((7 - i) * 4) & 0xf)]);
-	for (i = 0; i < 8; i++) MD5.insert(MD5.size(), sizeof(char), HextoChar[((D) >> ((7 - i) * 4) & 0xf)]);
-	return (MD5);
+	updateMD5String();
+	updateMD5Char();
+}
+
+void MD5::updateMD5Char(void)
+{
+	for (int i = 0; i < 4; i++)
+	for (int j = 0; j < 4; j++)
+		md5_char[i * 4 + j] = (hashes[i] >> ((4 - j) * 8)) & 0xff;
+}
+
+void MD5::updateMD5String(void)
+{
+	md5_str = "";
+	for (int i = 0; i < 4;i++)
+	for (int j = 0; j < 8; j++)
+		md5_str.insert(md5_str.size(), sizeof(char), HextoChar[((hashes[i]) >> ((7 - j) * 4) & 0xf)]);
 }
 
 /*
@@ -56,7 +126,7 @@ MD5 calculating process
 void MD5::process(void)
 {
 	uint32_t a, b, c, d;
-	a = A; b = B; c = C; d = D;
+	a = hashes[0]; b = hashes[1]; c = hashes[2]; d = hashes[3];
 
 	//convert to Little-Endian
 	for (int i = 0; i<16; i++) data[i] = reverseUINT32(data[i]);
@@ -133,17 +203,17 @@ void MD5::process(void)
 	II(c, d, a, b, data[2], 15, 0x2ad7d2bb);
 	II(b, c, d, a, data[9], 21, 0xeb86d391);
 
-	A += a; B += b; C += c; D += d;
+	hashes[0] += a; hashes[1] += b; hashes[2] += c; hashes[3] += d;
 }
 
-bool MD5::finallize(int dataBlockSize)
+bool MD5::finalize()
 {
 	uint32_t tmp = 0x00000000;
-	int i = dataBlockSize, j = 0;
+	int j = 0;
 	//last (2) block
 	//1.fill 512 bits, 2blocks
-	if (i == 56) {
-		fileSize += i * 8;
+	if (dataBlockSize == 56) {
+		fileSize += dataBlockSize * 8;
 		fileSize = reverseUINT64(fileSize);
 		//block1
 		data[14] = 0x80000000; data[15] = 0x00000000;
@@ -154,17 +224,17 @@ bool MD5::finallize(int dataBlockSize)
 		process();
 	}
 	//2.fill <512 bits, 1blocks
-	else if (i<56)
+	else if (dataBlockSize<56)
 	{
-		fileSize += i * 8;
+		fileSize += dataBlockSize * 8;
 		fileSize = reverseUINT64(fileSize);
 		//block1
-		i++; j++; tmp = tmp << 8; tmp += 0x80;
-		if (j == 4) { data[(i - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
-		while (i<56)
+		dataBlockSize++; j++; tmp = tmp << 8; tmp += 0x80;
+		if (j == 4) { data[(dataBlockSize - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
+		while (dataBlockSize<56)
 		{
-			i++; j++; tmp = tmp << 8; tmp += 0x00;
-			if (j == 4) { data[(i - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
+			dataBlockSize++; j++; tmp = tmp << 8; tmp += 0x00;
+			if (j == 4) { data[(dataBlockSize - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
 		}
 		data[14] = (fileSize >> 32) & 0xffffffff; data[15] = fileSize & 0xffffffff;
 		process();
@@ -172,15 +242,15 @@ bool MD5::finallize(int dataBlockSize)
 	//3.fill <512 bits, 2blocks
 	else
 	{
-		fileSize += i * 8;
+		fileSize += dataBlockSize * 8;
 		fileSize = reverseUINT64(fileSize);
 		//block1
-		i++; j++; tmp = tmp << 8; tmp += 0x80;
-		if (j == 4) { data[(i - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
-		while (i<64)
+		dataBlockSize++; j++; tmp = tmp << 8; tmp += 0x80;
+		if (j == 4) { data[(dataBlockSize - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
+		while (dataBlockSize<64)
 		{
-			i++; j++; tmp = tmp << 8; tmp += 0x00;
-			if (j == 4) { data[(i - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
+			dataBlockSize++; j++; tmp = tmp << 8; tmp += 0x00;
+			if (j == 4) { data[(dataBlockSize - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
 		}
 		process();
 		//block2
@@ -188,6 +258,7 @@ bool MD5::finallize(int dataBlockSize)
 		data[14] = (fileSize >> 32) & 0xffffffff; data[15] = fileSize & 0xffffffff;
 		process();
 	}
+	for (int i = 0; i < 4; i++)	hashes[i] = reverseUINT32(hashes[i]);
 	return(true);
 }
 
@@ -199,7 +270,7 @@ Call process
    fix it later
 */
 
-string MD5::getMD5_file(string inputFileName)
+void MD5::updateWithFilename(char* inputFileName)
 {
 	fstream in;
 	char t[1];
@@ -207,56 +278,53 @@ string MD5::getMD5_file(string inputFileName)
 	//magic initalize
 	uint32_t  tmp = 0x00000000;
 	//fileread init
-	in.open(inputFileName.c_str(), ios::binary | ios::in);
+	in.open(inputFileName, ios::binary | ios::in);
 	if (!in) { cout << "ERROR!"; exit(0); }
 	//seperate block and process
 	in.read(t, sizeof(t));
 	while (!in.eof())
 	{
-		while (i<64 && !in.eof())
+		while (dataBlockSize<64 && !in.eof())
 		{
-			i++; j++;
+			dataBlockSize++; j++;
 			tmp = tmp << 8; tmp += (unsigned char)t[0];
-			if (j == 4) { data[(i - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
+			if (j == 4) { data[(dataBlockSize - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
 			in.read(t, sizeof(t));
 		}
-		if (!in.eof() || (i == 64) {
+		if (!in.eof() || (dataBlockSize == 64))
+		{
 			fileSize += 512;
 			process();
-			i = 0;
+			dataBlockSize = 0;
 		}
 	}
-	finallize(i);
-	//file read finished.
+	finalize();
 	in.clear(); in.close();
-	A = reverseUINT32(A); B = reverseUINT32(B); C = reverseUINT32(C); D = reverseUINT32(D);
-	//cout<<(long*)(reverseUINT64(fileSize)/8);
-	//printMD5(A, B, C, D);
-	return(md5ToString().c_str());
+	updateMD5Results();
 }
 
-string MD5::getMD5_str(string strData)
+void MD5::update(char* dataIn, size_t length)
 {
 	char t[1] = { 0x00 };
 	int i = 0, j = 0, k = 0;
 	uint32_t tmp = 0x00000000;
-	t[0] = strData[k];
-	while ((size_t)k < strData.size())
+	t[0] = dataIn[k];
+	while ((size_t)k < length)
 	{
-		while (i<64 && (size_t)k < strData.size())
+		while (dataBlockSize<64 && (size_t)k < length)
 		{
-			i++; j++; k++;
+			dataBlockSize++; j++; k++;
 			tmp = tmp << 8; tmp += (unsigned char)t[0];
-			if (j == 4) { data[(i - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
-			t[0] = strData[k];
+			if (j == 4) { data[(dataBlockSize - 1) >> 2] = tmp; tmp = 0x00000000; j = 0; }
+			t[0] = dataIn[k];
 		}
-		if ((size_t)k < strData.size() || (i == 64)) {
+		if ((size_t)k < length || (dataBlockSize == 64))
+		{
 			fileSize += 512;
 			process();
-			i = 0;
+			dataBlockSize = 0;
 		}
 	}
-	finallize(i);
-	A = reverseUINT32(A); B = reverseUINT32(B); C = reverseUINT32(C); D = reverseUINT32(D);
-	return(md5ToString().c_str());
+	finalize();
+	updateMD5Results();
 }

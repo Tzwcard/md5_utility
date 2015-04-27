@@ -85,6 +85,9 @@ d=II(b,c,d,a,M9,21,0xeb86d391)
 When all done, add a to A, b to B ...
 Do that all until end of data.
 */
+
+/* still need to modify the update() and finalize() part to make the code more simple */
+
 #ifndef MD5UTILITY_H
 #define MD5UTILITY_H
 
@@ -94,82 +97,50 @@ Do that all until end of data.
 using namespace std;
 
 
-class MD5{
-
-	/*
-	Basic MD5 functions
-	*/
-
-#define F(x, y, z) (((x) & (y)) | ((~x) & (z)))
-#define G(x, y, z) (((x) & (z)) | ((y) & (~z)))
-#define H(x, y, z) ((x) ^ (y) ^ (z))
-#define I(x, y, z) ((y) ^ ((x) | (~z)))
-
-	/*
-	Reverse the UINT32 data
-	*/
-#define reverseUINT32(x)  ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >>  8) | (((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24)) 
-
-	/*
-	Reverse the UINT64 data
-	*/
-#define reverseUINT64(x)  ((((x) & 0xff00000000000000) >> 56) | (((x) & 0x00ff000000000000) >>  40) | (((x) & 0x0000ff0000000000) >> 24) | (((x) & 0x000000ff00000000) >>  8) | (((x) & 0x00000000ff000000) << 8 ) | (((x) & 0x0000000000ff0000) <<  24) | (((x) & 0x000000000000ff00) << 40 ) | (((x) & 0x00000000000000ff) <<  56))  
-
-	/*
-	ROTATE_LEFT rotates x left n bits.
-	*/
-
-#define ROTATE_LEFT(x, n) (((x) << (n)) | ((x) >> (32-(n))))
-
-	/*
-	FF(a,b,c,d,x,s,ti) a=b+((a+F(b,c,d)+x+ti)<<<s)
-	GG(a,b,c,d,x,s,ti) a=b+((a+G(b,c,d)+x+ti)<<<s)
-	HH(a,b,c,d,x,s,ti) a=b+((a+H(b,c,d)+x+ti)<<<s)
-	II(a,b,c,d,x,s,ti) a=b+((a+I(b,c,d)+x+ti)<<<s)
-	*/
-
-#define FF(a, b, c, d, x, s, ac) { \
-	(a) += F((b), (c), (d)) + (x)+ac; \
-	(a) = ROTATE_LEFT((a), (s)); \
-	(a) += (b); \
-}
-#define GG(a, b, c, d, x, s, ac) { \
-	(a) += G((b), (c), (d)) + (x)+ac; \
-	(a) = ROTATE_LEFT((a), (s)); \
-	(a) += (b); \
-}
-#define HH(a, b, c, d, x, s, ac) { \
-	(a) += H((b), (c), (d)) + (x)+ac; \
-	(a) = ROTATE_LEFT((a), (s)); \
-	(a) += (b); \
-}
-#define II(a, b, c, d, x, s, ac) { \
-	(a) += I((b), (c), (d)) + (x)+ac; \
-	(a) = ROTATE_LEFT((a), (s)); \
-	(a) += (b); \
-}
+class MD5
+{
 private:
 	char *HextoChar = "0123456789ABCDEF";
-	string md5 = "";
-	uint32_t A = 0x67452301, B = 0xefcdab89, C = 0x98badcfe, D = 0x10325476;
+	string md5_str = "";
+	char md5_char[16];
+	uint32_t hashes[4], data[16], dataBlockSize = 0;
 	uint64_t fileSize = 0;
-	uint32_t data[16];
 
-	string md5ToString(void);
+	inline uint32_t reverseUINT32(uint32_t);
+	inline uint64_t reverseUINT64(uint64_t);
+	inline uint32_t rotateLeftUINT32(uint32_t, size_t);
+
+	inline uint32_t F(uint32_t, uint32_t, uint32_t);
+	inline uint32_t G(uint32_t, uint32_t, uint32_t);
+	inline uint32_t H(uint32_t, uint32_t, uint32_t);
+	inline uint32_t I(uint32_t, uint32_t, uint32_t);
+
+	inline void FF(uint32_t&, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+	inline void GG(uint32_t&, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+	inline void HH(uint32_t&, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+	inline void II(uint32_t&, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+
 	void process(void);
-	bool finallize(int);
-	string getMD5_file(string);
-	string getMD5_str(string);
-	void setMD5(string);
+	bool finalize(void);
+
+	void updateMD5Results(void);
+	void updateMD5Char(void);
+	void updateMD5String(void);
+
 public:
 	MD5(void);
-	MD5(string, string);
+	MD5(char*);
+	MD5(char*, size_t);
 	~MD5(void);
-	void genMD5(string, string);
-	string getMD5(void);
-	void clear(void);
+
+	void init(void);
+	void update(char*, size_t);
+	void updateWithFilename(char*);
+
+	string getMD5InString(void);
+	char* getMD5InChar(void);
 };
 
-#endif MD5UTILITY_H
+#endif
 
 
