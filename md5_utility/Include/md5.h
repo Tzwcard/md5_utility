@@ -103,12 +103,14 @@ private:
 	char *HextoChar = "0123456789ABCDEF";
 	string md5_str = "";
 	char md5_char[16];
+	unsigned char dataC[64];
 	uint32_t hashes[4], data[16], dataBlockSize = 0;
 	uint64_t fileSize = 0;
 
 	inline uint32_t reverseUINT32(uint32_t);
 	inline uint64_t reverseUINT64(uint64_t);
 	inline uint32_t rotateLeftUINT32(uint32_t, size_t);
+	inline void packData(void);
 
 	inline uint32_t F(uint32_t, uint32_t, uint32_t);
 	inline uint32_t G(uint32_t, uint32_t, uint32_t);
